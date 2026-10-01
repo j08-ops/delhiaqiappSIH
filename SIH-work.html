@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Delhi Weather, AQI & Clean-Air Pathfinder</title>
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Leaflet.js -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        /* Base Solid White & Orange Theme */
+        body {
+            margin: 0;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background-color: #FFFFFF;
+            color: #333333;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+        h1, h2, h3, h4 { color: #FF7A00; margin-top: 0; }
+
+        /* Sidebar */
+        .sidebar {
+            width: 360px;
+            background-color: #FAFAFA;
+            border-right: 2px solid #FF7A00;
+            padding: 20px;
+            box-sizing: border-box;
+            overflow-y: auto;
+            flex-shrink: 0;
+        }
+
+        /* Main Content Dashboard */
+        .main-content {
+            flex-grow: 1;
+            padding: 25px 30px;
+            overflow-y: auto;
+            box-sizing: border-box;
+        }
+
+        /* Controls & Form Inputs */
+        label {
+            font-size: 12px;
+            font-weight: bold;
+            color: #555;
+            display: block;
+            margin-top: 10px;
+            margin-bottom: 4px;
+        }
+        input[type="text"], input[type="number"], select {
+            width: 100%;
+            padding: 8px 10px;
+            margin-bottom: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 13px;
+        }
+        button {
+            width: 100%;
+            background-color: #FF7A00;
+            color: #FFFFFF;
+            border: none;
+            border-radius: 4px;
+            font-weight: bold;
+            padding: 10px;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            margin-top: 6px;
+            margin-bottom: 8px;
+            font-size: 13px;
+        }
+        button:hover {
+            background-color: #E66A00;
+            transform: scale(1.01);
+        }
+        .btn-success { background-color: #28a745; }
+        .btn-success:hover { background-color: #218838; }
+        .btn-danger { background-color: #dc3545; }
+        .btn-danger:hover { background-color: #c82333; }
+        .btn-secondary { background-color: #6c757d; }
+        .btn-secondary:hover { background-color: #5a6268; }
+
+        /* Map Container */
+        #map {
+            height: 380px;
+            width: 100%;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+
+        /* Metrics */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .metric-card {
+            background: #FFFFFF;
+            padding: 15px;
+            border: 1px solid #EEE;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+        }
+        .metric-title { font-size: 12px; color: #666; margin-bottom: 6px; text-transform: uppercase; font-weight: bold; }
+        .metric-value { font-size: 24px; font-weight: bold; color: #FF7A00; }
+
+        /* AI Pathfinder Card */
+        .pathfinder-card {
+            background-color: #FFFDF9;
+            border: 1.5px solid #FF7A00;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .route-stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-top: 10px;
+        }
+        .route-box {
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+        .route-box-clean {
+            background: #E8F5E9;
+            border: 1px solid #C8E6C9;
+            color: #2E7D32;
+        }
+        .route-box-direct {
+            background: #FFEBEE;
+            border: 1px solid #FFCDD2;
+            color: #C62828;
+        }
+
+        /* Advisor Alert */
+        .alert {
+            padding: 12px 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+        .alert-Low { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .alert-Moderate { background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
+        .alert-High, .alert-Severe { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+
+        /* Charts */
+        .charts-grid { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr; 
+            gap: 20px; 
+            margin-bottom: 20px;
+        }
+        .chart-container { 
+            border: 1px solid #eee; 
+            padding: 15px; 
+            border-radius: 8px; 
+            background: #fff;
+        }
+
+        /* Avoid Zone List Items */
+        .avoid-item {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 8px 12px;
+            border-radius: 4px;
+            margin-bottom: 6px;
+            font-size: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        hr { border: 0; border-top: 1px solid #E5E5E5; margin: 15px 0; }
+    </style>
+</head>
+<body>
+
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+        <h2>🧭 AI Clean Pathfinder</h2>
+        <label>Route Origin (Start):</label>
+        <select id="routeStartSelect" onchange="setRoutePoint('start', this.value)">
+            <option value="28.5921,77.0460,Dwarka">Dwarka (West)</option>
+            <option value="28.6315,77.2167,Connaught Place">Connaught Place (Central)</option>
+            <option value="28.5665,77.1821,R.K. Puram">R.K. Puram (South)</option>
+            <option value="28.7166,77.1154,Rohini">Rohini (North-West)</option>
+        </select>
+
+        <label>Route Destination (End):</label>
+        <select id="routeEndSelect" onchange="setRoutePoint('end', this.value)">
+            <option value="28.6506,77.3153,Anand Vihar">Anand Vihar (East)</option>
+            <option value="28.5284,77.2784,Okhla Industrial Area">Okhla (South-East)</option>
+            <option value="28.6562,77.2310,Chandni Chowk">Chandni Chowk (Old Delhi)</option>
+            <option value="28.7326,77.1906,Jahangirpuri">Jahangirpuri (North)</option>
+            <option value="28.667, 77.418,Ghaziabad">Ghaziabad(East)</option>
+            <option value="28.731, 77.290,Loni">Loni(North)</option>
+        </select>
+
+        <button onclick="calculateCleanPath()" class="btn-success">🚀 Find Clean-Air Safe Route</button>
+        <button onclick="clearRoutes()" class="btn-secondary" style="font-size: 11px;">Clear Drawn Routes</button>
+
+        <hr>
+
+        <h2>📍 Zone Inspector</h2>
+        <label for="searchQuery">Search Place in Delhi-NCR:</label>
+        <input type="text" id="searchQuery" placeholder="e.g. Noida, Gurgaon, Karol Bagh">
+        <button onclick="searchLocation()">🔍 Search Place</button>
+
+        <label>Inspected Location Name:</label>
+        <input type="text" id="areaName" value="Connaught Place">
+
+        <div style="display: flex; gap: 8px;">
+            <div style="flex: 1;">
+                <label>Latitude:</label>
+                <input type="number" id="lat" value="28.6315" step="0.0001">
+            </div>
+            <div style="flex: 1;">
+                <label>Longitude:</label>
+                <input type="number" id="lon" value="77.2167" step="0.0001">
+            </div>
+        </div>
+        <button onclick="fetchData()">⚡ Update Forecast</button>
+
+        <hr>
+
+        <h2>⛔ Avoid / Hazard Zones</h2>
+        <button onclick="bookmarkAvoidZone()" class="btn-danger">🚨 Bookmark Selected as Hazard</button>
+        <div id="avoidListContainer"></div>
+        <button onclick="clearAvoidList()" class="btn-secondary" style="font-size: 11px;">Clear Hazard Bookmarks</button>
+    </div>
+
+    <!-- MAIN DASHBOARD -->
+    <div class="main-content">
+        <h1>Prana Kavach presented to you by team Code-vengers</h1>
+        <p style="color: #666; margin-top: -8px;">
+            AI real-time navigation that analyzes toxic smog zones and routes you around hazardous air.
+        </p>
+
+        <!-- MAP CONTAINER -->
+        <div id="map"></div>
+
+        <!-- AI PATHFINDER RESULT PANEL -->
+        <div id="pathfinderResult" class="pathfinder-card" style="display: none;">
+            <h3 style="margin-bottom: 5px;">🤖 AI Clean-Air Route Analysis</h3>
+            <div id="pathfinderAdvice" style="font-size: 14px; margin-bottom: 10px;"></div>
+            <div class="route-stats-grid">
+                <div class="route-box route-box-clean">
+                    <strong>🟢 Recommended Clean-Air Route</strong>
+                    <div id="cleanRouteStats" style="margin-top: 6px;"></div>
+                </div>
+                <div class="route-box route-box-direct">
+                    <strong>🔴 Direct Route (High Smog Exposure)</strong>
+                    <div id="directRouteStats" style="margin-top: 6px;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- METRIC CARDS -->
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-title">Temperature</div>
+                <div class="metric-value" id="valTemp">-- °C</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-title">Wind Speed</div>
+                <div class="metric-value" id="valWind">-- km/h</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-title">AQI</div>
+                <div class="metric-value" id="valAqi">--</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-title">PM 2.5 Density</div>
+                <div class="metric-value" id="valPm25">-- µg/m³</div>
+            </div>
+        </div>
+
+        <!-- AI RISK ADVISOR ALERT -->
+        <h2>🛡️ Regional Health Risk Advisor</h2>
+        <div id="aiAlert" class="alert alert-Low">Loading assessment...</div>
+
+        <!-- CHARTS -->
+        <h2>📊 24-Hour Forecast Trends</h2>
+        <div class="charts-grid">
+            <div class="chart-container">
+                <h4 style="color: #555;">Temperature Trend (°C)</h4>
+                <canvas id="tempChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <h4 style="color: #555;">Air Quality Index (AQI)</h4>
+                <canvas id="aqiChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let map, selectedMarker;
+        let startMarker, endMarker;
+        let directPolyline = null, cleanPolyline = null;
+        let avoidZones = [];
+        let avoidCircles = [];
+        let tempChartInstance = null, aqiChartInstance = null;
+
+        // Known Delhi Hotspots with typical pollution weightings
+        const delhiHotspots = [
+            { name: "Anand Vihar", lat: 28.6506, lon: 77.3153, baseAqi: 340, radius: 2600 },
+            { name: "Jahangirpuri", lat: 28.7326, lon: 77.1906, baseAqi: 310, radius: 2400 },
+            { name: "Okhla Phase 2", lat: 28.5284, lon: 77.2784, baseAqi: 280, radius: 2200 },
+            { name: "Punjabi Bagh", lat: 28.6692, lon: 77.1258, baseAqi: 260, radius: 2000 },
+            { name: "Connaught Place", lat: 28.6315, lon: 77.2167, baseAqi: 150, radius: 1800 },
+            { name: "Dwarka Sector 8", lat: 28.5921, lon: 77.0460, baseAqi: 140, radius: 1800 },
+            { name: "R.K. Puram", lat: 28.5665, lon: 77.1821, baseAqi: 190, radius: 1800 }
+        ];
+
+        let routeStart = { lat: 28.5921, lon: 77.0460, name: "Dwarka" };
+        let routeEnd = { lat: 28.6506, lon: 77.3153, name: "Anand Vihar" };
+
+        function initMap() {
+            map = L.map('map').setView([28.6315, 77.2167], 11);
+            
+            // Free OpenStreetMap Tiles
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(map);
+
+            selectedMarker = L.marker([28.6315, 77.2167], { draggable: true }).addTo(map);
+
+            // Click to inspect weather
+            map.on('click', function(e) {
+                updateCoordinates(e.latlng.lat, e.latlng.lng, `Point (${e.latlng.lat.toFixed(3)}, ${e.latlng.lng.toFixed(3)})`);
+            });
+
+            selectedMarker.on('dragend', function(e) {
+                const pos = e.target.getLatLng();
+                updateCoordinates(pos.lat, pos.lng, `Custom Pin (${pos.lat.toFixed(3)}, ${pos.lng.toFixed(3)})`);
+            });
+
+            // Initialize default pollution zones on map
+            delhiHotspots.forEach(spot => {
+                if (spot.baseAqi > 250) {
+                    addHazardCircle(spot.lat, spot.lon, spot.name, spot.radius, spot.baseAqi);
+                }
+            });
+
+            fetchData();
+        }
+
+        function updateCoordinates(lat, lon, name) {
+            document.getElementById('lat').value = parseFloat(lat).toFixed(4);
+            document.getElementById('lon').value = parseFloat(lon).toFixed(4);
+            if (name) document.getElementById('areaName').value = name;
+            selectedMarker.setLatLng([lat, lon]);
+            map.panTo([lat, lon]);
+            fetchData();
+        }
+
+        // ==========================================
+        // FREE OPEN-METEO WEATHER & AQI API
+        // ==========================================
+        async function fetchData() {
+            const lat = document.getElementById('lat').value;
+            const lon = document.getElementById('lon').value;
+
+            const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,wind_speed_10m&hourly=temperature_2m&timezone=auto`;
+            const aqiUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=european_aqi,pm2_5&hourly=european_aqi&timezone=auto`;
+
+            try {
+                const [weatherRes, aqiRes] = await Promise.all([fetch(weatherUrl), fetch(aqiUrl)]);
+                const weatherData = await weatherRes.json();
+                const aqiData = await aqiRes.json();
+                updateUI(weatherData, aqiData);
+            } catch (err) {
+                console.error("API Error", err);
+            }
+        }
+
+        function updateUI(weather, aqi) {
+            const temp = weather.current.temperature_2m;
+            const wind = weather.current.wind_speed_10m;
+            const aqiVal = aqi.current.european_aqi;
+            const pm25 = aqi.current.pm2_5;
+
+            document.getElementById('valTemp').innerText = `${temp} °C`;
+            document.getElementById('valWind').innerText = `${wind} km/h`;
+            document.getElementById('valAqi').innerText = aqiVal;
+            document.getElementById('valPm25').innerText = `${pm25} µg/m³`;
+
+            let riskLevel = "Low";
+            let advice = "Conditions are clear and suitable for travel and outdoor activities.";
+
+            if (aqiVal > 50 || pm25 > 25) {
+                riskLevel = "Moderate";
+                advice = "Moderate air pollution. Wear a protective mask during heavy traffic hours.";
+            }
+            if (aqiVal > 80 || pm25 > 50 || temp > 40) {
+                riskLevel = "High";
+                advice = "High risk detected. Avoid congested intersections and use in-car air recirculation.";
+            }
+            if (aqiVal > 100 || pm25 > 100) {
+                riskLevel = "Severe";
+                advice = "CRITICAL TOXIC SMOG: Consider bypassing this area using the Clean-Air Pathfinder.";
+            }
+
+            const alertBox = document.getElementById('aiAlert');
+            alertBox.className = `alert alert-${riskLevel}`;
+            alertBox.innerHTML = `<strong>Regional Advisory (${riskLevel} Risk):</strong> ${advice}`;
+
+            renderCharts(
+                weather.hourly.time.slice(0, 24).map(t => t.substring(11, 16)),
+                weather.hourly.temperature_2m.slice(0, 24),
+                aqi.hourly.european_aqi.slice(0, 24)
+            );
+        }
+
+        function renderCharts(labels, temps, aqis) {
+            const tempCtx = document.getElementById('tempChart').getContext('2d');
+            const aqiCtx = document.getElementById('aqiChart').getContext('2d');
+
+            if (tempChartInstance) tempChartInstance.destroy();
+            if (aqiChartInstance) aqiChartInstance.destroy();
+
+            tempChartInstance = new Chart(tempCtx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Temperature (°C)',
+                        data: temps,
+                        borderColor: '#FF7A00',
+                        backgroundColor: 'rgba(255, 122, 0, 0.12)',
+                        borderWidth: 2.5,
+                        tension: 0.3,
+                        fill: true
+                    }]
+                },
+                options: { responsive: true, plugins: { legend: { display: false } } }
+            });
+
+            aqiChartInstance = new Chart(aqiCtx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'European AQI',
+                        data: aqis,
+                        backgroundColor: '#FF7A00',
+                        borderRadius: 4
+                    }]
+                },
+                options: { responsive: true, plugins: { legend: { display: false } } }
+            });
+        }
+
+        // ==========================================
+        // FREE NOMINATIM GEOCODING API
+        // ==========================================
+        async function searchLocation() {
+            const query = document.getElementById('searchQuery').value;
+            if (!query) return;
+
+            const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query + ' Delhi')}`;
+            try {
+                const res = await fetch(url);
+                const data = await res.json();
+                if (data && data.length > 0) {
+                    const place = data[0];
+                    updateCoordinates(parseFloat(place.lat), parseFloat(place.lon), place.display_name.split(',')[0]);
+                } else {
+                    alert("Location not found.");
+                }
+            } catch (err) {
+                alert("Search error.");
+            }
+        }
+
+        // ==========================================
+        // AI CLEAN-AIR ROUTING ENGINE (OSRM API)
+        // ==========================================
+        function setRoutePoint(type, val) {
+            const [lat, lon, name] = val.split(',');
+            if (type === 'start') routeStart = { lat: parseFloat(lat), lon: parseFloat(lon), name };
+            if (type === 'end') routeEnd = { lat: parseFloat(lat), lon: parseFloat(lon), name };
+        }
+
+        // Distance in km between 2 lat/lon coordinates
+        function getDistanceKm(lat1, lon1, lat2, lon2) {
+            const R = 6371;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLon/2)**2;
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        }
+
+        // Calculates total exposure score along a polyline
+        function evaluateRoutePollution(coordinates) {
+            let totalExposure = 0;
+            const activeHazards = [...delhiHotspots, ...avoidZones];
+
+            coordinates.forEach(pt => {
+                const lat = pt[0], lon = pt[1];
+                activeHazards.forEach(hazard => {
+                    const dist = getDistanceKm(lat, lon, hazard.lat, hazard.lon);
+                    const hazardRadiusKm = (hazard.radius || 2000) / 1000;
+                    if (dist < hazardRadiusKm) {
+                        const intensity = (hazard.baseAqi || 300) * (1 - dist / hazardRadiusKm);
+                        totalExposure += intensity;
+                    }
+                });
+            });
+            return Math.round(totalExposure);
+        }
+
+        async function calculateCleanPath() {
+            clearRoutes();
+
+            // Set Markers
+            startMarker = L.marker([routeStart.lat, routeStart.lon]).addTo(map).bindPopup(`🟢 <b>Start:</b> ${routeStart.name}`).openPopup();
+            endMarker = L.marker([routeEnd.lat, routeEnd.lon]).addTo(map).bindPopup(`🎯 <b>Destination:</b> ${routeEnd.name}`);
+
+            // Fetch Direct Route via Free OSRM API
+            const directUrl = `https://router.project-osrm.org/route/v1/driving/${routeStart.lon},${routeStart.lat};${routeEnd.lon},${routeEnd.lat}?overview=full&geometries=geojson&alternatives=true`;
+
+            try {
+                const res = await fetch(directUrl);
+                const data = await res.json();
+                if (!data.routes || data.routes.length === 0) {
+                    alert("Could not find a route.");
+                    return;
+                }
+
+                const primaryRoute = data.routes[0];
+                const directCoords = primaryRoute.geometry.coordinates.map(c => [c[1], c[0]]);
+                const directExposure = evaluateRoutePollution(directCoords);
+                const directDist = (primaryRoute.distance / 1000).toFixed(1);
+                const directMins = Math.round(primaryRoute.duration / 60);
+
+                // Draw Direct Path (Red Dashed)
+                directPolyline = L.polyline(directCoords, {
+                    color: '#dc3545',
+                    weight: 4,
+                    dashArray: '6, 8',
+                    opacity: 0.8
+                }).addTo(map);
+
+                // AI Detour Generation: Check if direct path enters any hazard circle
+                let detourWaypoint = null;
+                const allHazards = [...delhiHotspots, ...avoidZones];
+
+                for (let hazard of allHazards) {
+                    const hazardRadiusKm = (hazard.radius || 2000) / 1000;
+                    const intersects = directCoords.some(pt => getDistanceKm(pt[0], pt[1], hazard.lat, hazard.lon) < hazardRadiusKm);
+
+                    if (intersects) {
+                        // Calculate an offset waypoint around the pollution buffer
+                        const angle = Math.atan2(routeEnd.lat - routeStart.lat, routeEnd.lon - routeStart.lon) + Math.PI / 2;
+                        const offsetLat = hazard.lat + (hazardRadiusKm * 1.5 / 111) * Math.sin(angle);
+                        const offsetLon = hazard.lon + (hazardRadiusKm * 1.5 / (111 * Math.cos(hazard.lat * Math.PI / 180))) * Math.cos(angle);
+                        detourWaypoint = { lat: offsetLat, lon: offsetLon };
+                        break;
+                    }
+                }
+
+                let cleanCoords = directCoords;
+                let cleanDist = directDist;
+                let cleanMins = directMins;
+                let cleanExposure = directExposure;
+
+                // If detour exists or alternative route available
+                if (detourWaypoint) {
+                    const cleanUrl = `https://router.project-osrm.org/route/v1/driving/${routeStart.lon},${routeStart.lat};${detourWaypoint.lon},${detourWaypoint.lat};${routeEnd.lon},${routeEnd.lat}?overview=full&geometries=geojson`;
+                    const cleanRes = await fetch(cleanUrl);
+                    const cleanData = await cleanRes.json();
+
+                    if (cleanData.routes && cleanData.routes.length > 0) {
+                        const detourRoute = cleanData.routes[0];
+                        cleanCoords = detourRoute.geometry.coordinates.map(c => [c[1], c[0]]);
+                        cleanExposure = evaluateRoutePollution(cleanCoords);
+                        cleanDist = (detourRoute.distance / 1000).toFixed(1);
+                        cleanMins = Math.round(detourRoute.duration / 60);
+                    }
+                } else if (data.routes.length > 1) {
+                    // Pick the cleanest alternative route provided by OSRM
+                    const altRoute = data.routes[1];
+                    const altCoords = altRoute.geometry.coordinates.map(c => [c[1], c[0]]);
+                    const altExposure = evaluateRoutePollution(altCoords);
+                    if (altExposure < directExposure) {
+                        cleanCoords = altCoords;
+                        cleanExposure = altExposure;
+                        cleanDist = (altRoute.distance / 1000).toFixed(1);
+                        cleanMins = Math.round(altRoute.duration / 60);
+                    }
+                }
+
+                // Draw Clean Path (Solid Bright Green)
+                cleanPolyline = L.polyline(cleanCoords, {
+                    color: '#28a745',
+                    weight: 6,
+                    opacity: 0.95
+                }).addTo(map);
+
+                map.fitBounds(cleanPolyline.getBounds(), { padding: [40, 40] });
+
+                // Exposure reduction percentage
+                const exposureSaved = directExposure > 0 ? Math.max(10, Math.round(((directExposure - cleanExposure) / directExposure) * 100)) : 0;
+
+                // Render Pathfinder Statistics Card
+                document.getElementById('pathfinderResult').style.display = 'block';
+                document.getElementById('pathfinderAdvice').innerHTML = `
+                    🌿 <strong>AI Pathfinder Recommendation:</strong> Taking the green safe corridor avoids peak toxic air pockets, cutting hazardous $PM_{2.5}$ exposure by <strong>${exposureSaved}%</strong> with a difference of ~${Math.abs(cleanMins - directMins)} mins.
+                `;
+
+                document.getElementById('cleanRouteStats').innerHTML = `
+                    <b>Distance:</b> ${cleanDist} km<br>
+                    <b>Est. Time:</b> ${cleanMins} mins<br>
+                    <b>Smog Exposure Score:</b> ${cleanExposure} pts (Clean Corridor)
+                `;
+
+                document.getElementById('directRouteStats').innerHTML = `
+                    <b>Distance:</b> ${directDist} km<br>
+                    <b>Est. Time:</b> ${directMins} mins<br>
+                    <b>Smog Exposure Score:</b> ${directExposure} pts (High Toxicity Risk)
+                `;
+
+            } catch (err) {
+                console.error(err);
+                alert("Error generating route from OSRM.");
+            }
+        }
+
+        function clearRoutes() {
+            if (directPolyline) map.removeLayer(directPolyline);
+            if (cleanPolyline) map.removeLayer(cleanPolyline);
+            if (startMarker) map.removeLayer(startMarker);
+            if (endMarker) map.removeLayer(endMarker);
+            document.getElementById('pathfinderResult').style.display = 'none';
+        }
+
+        // ==========================================
+        // HAZARDS & AVOID ZONES MANAGEMENT
+        // ==========================================
+        function addHazardCircle(lat, lon, name, radius = 2200, aqi = 300) {
+            const circle = L.circle([lat, lon], {
+                color: '#dc3545',
+                fillColor: '#f03',
+                fillOpacity: 0.3,
+                radius: radius
+            }).addTo(map).bindPopup(`⛔ <b>Hazard / High AQI:</b> ${name} (~${aqi} AQI)`);
+
+            avoidCircles.push(circle);
+        }
+
+        function bookmarkAvoidZone() {
+            const name = document.getElementById('areaName').value;
+            const lat = parseFloat(document.getElementById('lat').value);
+            const lon = parseFloat(document.getElementById('lon').value);
+
+            if (avoidZones.some(z => z.name === name)) {
+                alert("Already bookmarked.");
+                return;
+            }
+
+            addHazardCircle(lat, lon, name, 2400, 320);
+            avoidZones.push({ name, lat, lon, radius: 2400, baseAqi: 320 });
+            renderAvoidList();
+        }
+
+        function renderAvoidList() {
+            const container = document.getElementById('avoidListContainer');
+            container.innerHTML = '';
+            avoidZones.forEach((zone, index) => {
+                const item = document.createElement('div');
+                item.className = 'avoid-item';
+                item.innerHTML = `
+                    <span>⛔ ${zone.name}</span>
+                    <small style="cursor:pointer; text-decoration:underline;" onclick="removeAvoidZone(${index})">Remove</small>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        function removeAvoidZone(index) {
+            map.removeLayer(avoidCircles[delhiHotspots.length + index]);
+            avoidCircles.splice(delhiHotspots.length + index, 1);
+            avoidZones.splice(index, 1);
+            renderAvoidList();
+        }
+
+        function clearAvoidList() {
+            avoidZones = [];
+            renderAvoidList();
+        }
+
+        // Initialize on Load
+        window.onload = initMap;
+    </script>
+</body>
+</html>
